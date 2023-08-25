@@ -2,9 +2,9 @@
 
 ```
 History
-|-- bugs  # histories of bugs we found
-|-- figure  # histories used by figures
-|-- reproduce  # histories of bugs found by other paper
-`-- test case  # 12 small test cases corresponding to our 12 anomalous patterns
+|-- bugs  # histories for the bugs we found
+|-- figure  # histories corresponding to the figures in the paper
+|-- reproduce  # histories for the bugs previously found by other tools
+`-- test case  # 12 simple test cases corresponding to our 12 transactional anomalous patterns
 ```
 
