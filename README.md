@@ -5,10 +5,10 @@ This repository contains the artifact for C4 and the accompanying technical repo
 ## Repository Organization
 
 ```
-C4-Artifacts 
+C4 
 |-- C4 	# our prototype of C4
-|-- C4-Artifacts.md 
 |-- History  # histories and benchmarks uesd in the paper
-`-- TCC_TOOL  # our implementations of CausalC+ and TCC-Mono
+|-- TCC_TOOL  # our implementations of CausalC+ and TCC-Mono
+`-- c4_tech_rpt.pdf  # our technical report
 ```
 
