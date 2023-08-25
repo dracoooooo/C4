@@ -1,14 +1,14 @@
-# C4-Artifacts
+# Supplementary Material for "Complete and Efficient Checking of Transactional Causal Consistency in Databases"
 
-This repository contains the supplementary material for C4. 
+This repository contains the artifact for C4 and accompanying technical report. 
 
-## Project organization
+## Repository Organization
 
 ```
 C4-Artifacts 
-|-- C4 	# our implementation of C4
+|-- C4 	# our prototype of C4
 |-- C4-Artifacts.md 
-|-- History  # histories we uesd in paper
-`-- TCC_TOOL  # our implementation of CausalC+ and TCC-Mono
+|-- History  # histories and benchmarks uesd in the paper
+`-- TCC_TOOL  # our implementations of CausalC+ and TCC-Mono
 ```
 
