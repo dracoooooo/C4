@@ -1,10 +1,10 @@
 # C4
 
-C4 is a tool that helps you check the transactional causal consistency of a distributed database.
+C4 is a tool that helps you check transactional causal consistency in database engines. 
 
 ## Installation
 
-To use C4, you will need to have java11 and maven installed on your system.
+To use C4, you will need to install java11 and maven on your system.
 
 ```bash
 $ sudo apt update
@@ -19,13 +19,13 @@ $ cd C4
 $ mvn clean package
 ```
 
-After building, there will be a product at `target/C4-1.0-SNAPSHOT-shaded.jar`.
+Once finished, there will be a product at `target/C4-1.0-SNAPSHOT-shaded.jar`.
 
 ## Usage
 
 ```
 Usage: C4 [-hV] [-t=<algType>] <file>
-Check if the history satisfies transactional causal consistency.
+Check if a history satisfies transactional causal consistency.
 
       <file>      Input file
   -h, --help      Show this help message and exit.
