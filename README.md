@@ -1,6 +1,6 @@
 # Supplementary Material for "Complete and Efficient Checking of Transactional Causal Consistency in Databases"
 
-This repository contains the artifact for C4 and accompanying technical report. 
+This repository contains the artifact for C4 and the accompanying technical report. 
 
 ## Repository Organization
 
