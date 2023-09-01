@@ -2,15 +2,22 @@ package alg;
 
 import badPattern.BadPatternType;
 import graph.*;
+import guru.nidi.graphviz.engine.Format;
 import history.History;
 import history.Operation;
 import history.Transaction;
 import javafx.util.Pair;
 import lombok.Data;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static guru.nidi.graphviz.engine.Graphviz.fromGraph;
+import static guru.nidi.graphviz.model.Factory.graph;
+import static guru.nidi.graphviz.model.Factory.node;
 
 @Data
 public class C4<VarType, ValType> {
@@ -206,6 +213,7 @@ public class C4<VarType, ValType> {
                 if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
                     // find cyclicCO
                     findBadPattern(BadPatternType.CyclicCO);
+                    print2TxnBp(t1.getTransaction(), t2.getTransaction());
                 }
             });
         });
@@ -253,6 +261,7 @@ public class C4<VarType, ValType> {
                                 isRA.set(true);
                                 // find fractured read co
                                 findBadPattern(BadPatternType.FracturedReadCO);
+                                print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
                             }
                         });
                         // continue if is RA bp
@@ -261,6 +270,7 @@ public class C4<VarType, ValType> {
                         }
                         // find co conflict vo
                         findBadPattern(BadPatternType.COConflictVO);
+                        print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
                     }
                 });
             });
@@ -281,6 +291,7 @@ public class C4<VarType, ValType> {
                                 isRA.set(true);
                                 // find fractured read vo
                                 findBadPattern(BadPatternType.FracturedReadVO);
+                                print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
                             }
                         });
                         // continue if is RA bp
@@ -289,6 +300,7 @@ public class C4<VarType, ValType> {
                         }
                         // find conflict vo
                         findBadPattern(BadPatternType.ConflictVO);
+                        print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
                     }
                 });
             });
@@ -359,5 +371,40 @@ public class C4<VarType, ValType> {
             return toNodes.stream().anyMatch((node) -> (edgeType == Edge.Type.CO && node.canReachByCO(from)) ||
                     (edgeType == Edge.Type.VO && node.canReachByVO(from)));
         });
+    }
+
+    private void print3TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2, Transaction<VarType, ValType> t3) {
+        var node1 = node("t" + t1.getId());
+        var node2 = node("t" + t2.getId());
+        var node3 = node("t" + t3.getId());
+        var g = graph().directed()
+                .linkAttr().with("class", "link-class")
+                .with(
+                        node1.link(node2),
+                        node2.link(node3),
+                        node2.link(node1),
+                        node1.link(node3)
+                );
+        try {
+            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s-%s.png", t1.getId(), t2.getId(), t3.getId())));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void print2TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2) {
+        var node1 = node("t" + t1.getId());
+        var node2 = node("t" + t2.getId());
+        var g = graph().directed()
+                .linkAttr().with("class", "link-class")
+                .with(
+                        node1.link(node2),
+                        node2.link(node1)
+                );
+        try {
+            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s.png", t1.getId(), t2.getId())));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
