@@ -1,0 +1,4 @@
+client num,txn per client,rd rate,key num,distribution,op per txn,tc,dbcop,datalog,monosat,polysi
+25,200,0.5,10000,uniform,20,1.077,600.087,600.037,71.74,109.24
+25,200,0.5,10000,zipf,20,1.543,600.123,600.027,109.353,485.597
+25,200,0.5,10000,hotspot,20,1.277,600.19,600.033,123.593,585.06

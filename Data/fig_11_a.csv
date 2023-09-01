@@ -1,0 +1,7 @@
+name,tc_java,vc_java,no_vec_java
+GeneralWH,3.123,6.17,600.173
+GeneralRW,3.057,5.643,600.167
+GeneralRH,2.097,2.433,600.133
+RUBiS,1.01,1.07,190.71
+TPC-C,2.78,4.15,600.15
+C-Twitter,0.87,1.04,272.73

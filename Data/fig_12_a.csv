@@ -1,0 +1,6 @@
+client num,txn per client,rd rate,key num,distribution,op per txn,tc_java
+100,10000,0.2,1000000000,uniform,20,95.31
+100,10000,0.4,1000000000,uniform,20,88.34
+100,10000,0.5,1000000000,uniform,20,89.04
+100,10000,0.6,1000000000,uniform,20,88.12
+100,10000,0.8,1000000000,uniform,20,98.97
