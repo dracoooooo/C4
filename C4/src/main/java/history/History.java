@@ -13,6 +13,8 @@ public class History<VarType, ValType> {
 
     private final Set<Pair<VarType, ValType>> abortedWrites = new HashSet<>();
 
+    private int sessionSize;
+
     public Session<VarType, ValType> getSession(long id) {
         return sessions.get(id);
     }

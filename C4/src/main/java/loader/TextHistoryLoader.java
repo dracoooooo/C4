@@ -63,7 +63,7 @@ public class TextHistoryLoader implements HistoryLoader<Long, Long>{
                     op.equals("r") ? Operation.Type.READ : Operation.Type.WRITE, key,
                     value);
         });
-
+        history.setSessionSize((int) minSessionId[0]);
         return history;
     }
 }

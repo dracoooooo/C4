@@ -36,6 +36,7 @@ public class ElleHistoryLoader implements HistoryLoader<Integer, ElleHistoryLoad
     private History<Integer, ElleHistoryLoader.ElleValue> parseFile(BufferedReader reader) {
         var history = new History<Integer, ElleHistoryLoader.ElleValue>();
         reader.lines().forEachOrdered(line -> parseLine(history, CharBuffer.wrap(line)));
+        history.setSessionSize(minSessionId);
         return history;
     }
 

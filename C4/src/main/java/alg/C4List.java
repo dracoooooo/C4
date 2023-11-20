@@ -360,7 +360,7 @@ public class C4List<VarType> {
 
     private Node<VarType, ElleHistoryLoader.ElleValue> constructNode(Transaction<VarType, ElleHistoryLoader.ElleValue> transaction, Node<VarType, ElleHistoryLoader.ElleValue> prev) {
         short tid = (short) transaction.getSession().getId();
-        int dim = history.getSessions().size();
+        int dim = history.getSessionSize();
         switch (type) {
             case C4_LIST:
                 return new TCNode<>(graph, transaction, tid, dim, prev);

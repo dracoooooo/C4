@@ -339,7 +339,7 @@ public class C4<VarType, ValType> {
 
     private Node<VarType, ValType> constructNode(Transaction<VarType, ValType> transaction, Node<VarType, ValType> prev) {
         short tid = (short) transaction.getSession().getId();
-        int dim = history.getSessions().size();
+        int dim = history.getSessionSize();
         switch (type) {
             case C4:
                 return new TCNode<>(graph, transaction, tid, dim, prev);
