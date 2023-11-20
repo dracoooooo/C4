@@ -1,6 +1,7 @@
 import alg.AlgType;
 import alg.C4;
 import alg.C4List;
+import alg.IsolationLevel;
 import loader.ElleHistoryLoader;
 import loader.TextHistoryLoader;
 import picocli.CommandLine;
@@ -20,19 +21,21 @@ public class Main implements Callable<Integer> {
     @Option(names = "-t", description = "Candidates: ${COMPLETION-CANDIDATES}")
     private AlgType algType;
 
+    @Option(names = "-i", description = "Candidates: ${COMPLETION-CANDIDATES}")
+    private IsolationLevel isolationLevel;
 
     @Override
     public Integer call()  {
         if (algType.equals(AlgType.C4_LIST)) {
             var historyLoader = new ElleHistoryLoader(file);
             var history = historyLoader.loadHistory();
-            var c4 = new C4List<>(algType, history);
+            var c4 = new C4List<>(algType, history, isolationLevel);
             c4.validate();
             System.out.println(c4.getBadPatterns());
         } else {
             var historyLoader = new TextHistoryLoader(file);
             var history = historyLoader.loadHistory();
-            var c4 = new C4<>(algType, history);
+            var c4 = new C4<>(algType, history, isolationLevel);
             c4.validate();
             System.out.println(c4.getBadPatterns());
         }

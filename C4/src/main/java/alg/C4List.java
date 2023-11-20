@@ -22,6 +22,8 @@ public class C4List<VarType> {
 
     private final History<VarType, ElleHistoryLoader.ElleValue> history;
 
+    private final IsolationLevel isolationLevel;
+
     private final Set<BadPatternType> badPatterns = new HashSet<>();
     private final Map<String, Integer> badPatternCount = new HashMap<>();
     private final Graph<VarType, ElleHistoryLoader.ElleValue> graph = new Graph<>();

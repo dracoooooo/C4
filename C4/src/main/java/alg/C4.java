@@ -25,6 +25,8 @@ public class C4<VarType, ValType> {
 
     private final History<VarType, ValType> history;
 
+    private final IsolationLevel isolationLevel;
+
     private final Set<BadPatternType> badPatterns = new HashSet<>();
     private final Map<String, Integer> badPatternCount = new HashMap<>();
     private final Graph<VarType, ValType> graph = new Graph<>();
@@ -42,6 +44,10 @@ public class C4<VarType, ValType> {
     public void validate() {
         buildCO();
         checkCOBP();
+        if (isolationLevel == IsolationLevel.RC) {
+            System.out.println(badPatternCount);
+            return;
+        }
         syncClock();
         buildVO();
         if (!hasCircle(Edge.Type.VO)) {
@@ -172,16 +178,19 @@ public class C4<VarType, ValType> {
                         return;
                     }
 
-                    // check if write(x, k) co-> read
-                    writeRelNodes.forEach((writeNode) -> {
-                        if (writeNode.equals(node)) {
-                            return;
-                        }
-                        if (writeNode.canReachByCO(node)) {
-                            // find writeCOInitRead
-                            findBadPattern(BadPatternType.WriteCOInitRead);
-                        }
-                    });
+                    // check InitialRead if check TCC
+                    if (isolationLevel == IsolationLevel.TCC) {
+                        // check if write(x, k) co-> read
+                        writeRelNodes.forEach((writeNode) -> {
+                            if (writeNode.equals(node)) {
+                                return;
+                            }
+                            if (writeNode.canReachByCO(node)) {
+                                // find writeCOInitRead
+                                findBadPattern(BadPatternType.WriteCOInitRead);
+                            }
+                        });
+                    }
                     return;
                 }
 
@@ -205,18 +214,21 @@ public class C4<VarType, ValType> {
             });
         });
 
-        // iter wr edge (t1 wr-> t2)
-        WREdges.forEach((varX, edgesX) -> {
-            edgesX.forEach((edge) -> {
-                var t1 = edge.getKey();
-                var t2 = edge.getValue();
-                if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
-                    // find cyclicCO
-                    findBadPattern(BadPatternType.CyclicCO);
-                    print2TxnBp(t1.getTransaction(), t2.getTransaction());
-                }
+        // check CyclicCO if check TCC
+        if (isolationLevel == IsolationLevel.TCC) {
+            // iter wr edge (t1 wr-> t2)
+            WREdges.forEach((varX, edgesX) -> {
+                edgesX.forEach((edge) -> {
+                    var t1 = edge.getKey();
+                    var t2 = edge.getValue();
+                    if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
+                        // find cyclicCO
+                        findBadPattern(BadPatternType.CyclicCO);
+                        print2TxnBp(t1.getTransaction(), t2.getTransaction());
+                    }
+                });
             });
-        });
+        }
     }
 
     private void buildVO() {
@@ -268,9 +280,12 @@ public class C4<VarType, ValType> {
                         if (isRA.get()) {
                             return;
                         }
-                        // find co conflict vo
-                        findBadPattern(BadPatternType.COConflictVO);
-                        print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+                        // check COConflictVO if check TCC, continue if check RA
+                        if (isolationLevel == IsolationLevel.TCC) {
+                            // find co conflict vo
+                            findBadPattern(BadPatternType.COConflictVO);
+                            print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+                        }
                     }
                 });
             });
@@ -298,9 +313,12 @@ public class C4<VarType, ValType> {
                         if (isRA.get()) {
                             return;
                         }
-                        // find conflict vo
-                        findBadPattern(BadPatternType.ConflictVO);
-                        print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+                        // check ConflictVO if check TCC, continue if check RA
+                        if (isolationLevel == IsolationLevel.TCC) {
+                            // find conflict vo
+                            findBadPattern(BadPatternType.ConflictVO);
+                            print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+                        }
                     }
                 });
             });
