@@ -41,6 +41,10 @@ public class C4List<VarType> {
     public void validate() {
         buildCO();
         checkCOBP();
+        if (isolationLevel == IsolationLevel.RC) {
+            System.out.println(badPatternCount);
+            return;
+        }
         syncClock();
         buildWW();
         buildVO();
@@ -172,17 +176,20 @@ public class C4List<VarType> {
                         return;
                     }
 
-                    // check if write(x, k) co-> read
-                    writeRelNodes.forEach((writeNode) -> {
-                        if (writeNode.equals(node)) {
-                            return;
-                        }
-                        if (writeNode.canReachByCO(node)) {
-                            // find writeCOInitRead
-                            findBadPattern(BadPatternType.WriteCOInitRead);
-                        }
-                    });
-                    return;
+                    // check InitialRead if check TCC
+                    if (isolationLevel == IsolationLevel.TCC) {
+                        // check if write(x, k) co-> read
+                        writeRelNodes.forEach((writeNode) -> {
+                            if (writeNode.equals(node)) {
+                                return;
+                            }
+                            if (writeNode.canReachByCO(node)) {
+                                // find writeCOInitRead
+                                findBadPattern(BadPatternType.WriteCOInitRead);
+                            }
+                        });
+                        return;
+                    }
                 }
 
                 // write wr-> read
@@ -205,17 +212,20 @@ public class C4List<VarType> {
             });
         });
 
-        // iter wr edge (t1 wr-> t2)
-        WREdges.forEach((varX, edgesX) -> {
-            edgesX.forEach((edge) -> {
-                var t1 = edge.getKey();
-                var t2 = edge.getValue();
-                if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
-                    // find cyclicCO
-                    findBadPattern(BadPatternType.CyclicCO);
-                }
+        // check CyclicCO if check TCC
+        if (isolationLevel == IsolationLevel.TCC) {
+            // iter wr edge (t1 wr-> t2)
+            WREdges.forEach((varX, edgesX) -> {
+                edgesX.forEach((edge) -> {
+                    var t1 = edge.getKey();
+                    var t2 = edge.getValue();
+                    if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
+                        // find cyclicCO
+                        findBadPattern(BadPatternType.CyclicCO);
+                    }
+                });
             });
-        });
+        }
     }
 
     private void buildWW() {
@@ -294,8 +304,11 @@ public class C4List<VarType> {
                         if (isRA.get()) {
                             return;
                         }
-                        // find co conflict vo
-                        findBadPattern(BadPatternType.COConflictVO);
+                        // check COConflictVO if check TCC, continue if check RA
+                        if (isolationLevel == IsolationLevel.TCC) {
+                            // find co conflict vo
+                            findBadPattern(BadPatternType.COConflictVO);
+                        }
                     }
                 });
             });
@@ -322,8 +335,11 @@ public class C4List<VarType> {
                         if (isRA.get()) {
                             return;
                         }
-                        // find conflict vo
-                        findBadPattern(BadPatternType.ConflictVO);
+                        // check ConflictVO if check TCC, continue if check RA
+                        if (isolationLevel == IsolationLevel.TCC) {
+                            // find conflict vo
+                            findBadPattern(BadPatternType.ConflictVO);
+                        }
                     }
                 });
             });
