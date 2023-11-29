@@ -1,0 +1,2 @@
+{:index 0, :time 0, :type :ok, :process 1, :f :txn, :value [[:append :x 1] [:append :x 2]]}
+{:index 1, :time 0, :type :ok, :process 2, :f :txn, :value [[:r :x [1]]]}
