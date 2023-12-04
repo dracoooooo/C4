@@ -1,1 +1,1 @@
-{:index 0, :time 0, :type :ok, :process 0, :f :txn, :value [[:r :x [1]] [:r :y [1]]]}
+{:index 0, :time 0, :type :ok, :process 0, :f :txn, :value [[:r 1 [1]] [:r 2 [1]]]}

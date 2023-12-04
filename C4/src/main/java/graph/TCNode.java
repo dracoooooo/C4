@@ -25,7 +25,7 @@ public class TCNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public boolean canReachByVO(Node<VarType, ValType> other) {
+    public boolean canReachByAO(Node<VarType, ValType> other) {
         if (!(other instanceof TCNode)) {
             throw new RuntimeException("Type mismatch");
         }
@@ -41,7 +41,7 @@ public class TCNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public void updateVOReachability(Node<VarType, ValType> other) {
+    public void updateAOReachability(Node<VarType, ValType> other) {
         if (!(other instanceof TCNode)) {
             throw new RuntimeException("Type mismatch");
         }
@@ -49,7 +49,7 @@ public class TCNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public void syncCOVO() {
+    public void syncCOAO() {
         clockVO = new TreeClock(clock);
     }
 }

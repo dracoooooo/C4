@@ -52,6 +52,7 @@ public class ElleHistoryLoader implements HistoryLoader<Integer, ElleHistoryLoad
 
         ArrayList<Triple<Operation.Type, Integer, ElleValue>> txnValue = null;
         Integer txnProcess = null;
+        LogType type = null;
         while (line.charAt(0) != '}') {
             var result = keyRegex.matcher(line.duplicate());
 
@@ -62,7 +63,8 @@ public class ElleHistoryLoader implements HistoryLoader<Integer, ElleHistoryLoad
 
             switch (result.group()) {
                 case ":type":
-                    if (parseType(line) != LogType.OK) {
+                    type = parseType(line);
+                    if (type != LogType.OK && type != LogType.FAIL) {
                         return;
                     }
                     break;
@@ -97,6 +99,13 @@ public class ElleHistoryLoader implements HistoryLoader<Integer, ElleHistoryLoad
 
         if (txnProcess == null || txnValue == null) {
             throw new RuntimeException(String.format("Missing :process or :value in \"%s\"", line.clear()));
+        }
+
+        if (type == LogType.FAIL) {
+            txnValue.stream().
+                    filter(v -> v.getLeft().equals(Operation.Type.WRITE))
+                    .forEach(v -> history.addAbortedWrite(v.getMiddle(), v.getRight()));
+            return;
         }
 
         var session = history.getSession(txnProcess);

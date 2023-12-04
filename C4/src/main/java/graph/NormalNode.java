@@ -33,7 +33,7 @@ public class NormalNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public boolean canReachByVO(Node<VarType, ValType> other) {
+    public boolean canReachByAO(Node<VarType, ValType> other) {
         return canReachByDFS(new HashSet<>(), this, other);
     }
 
@@ -43,12 +43,12 @@ public class NormalNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public void updateVOReachability(Node<VarType, ValType> other) {
+    public void updateAOReachability(Node<VarType, ValType> other) {
 
     }
 
     @Override
-    public void syncCOVO() {
+    public void syncCOAO() {
 
     }
 }

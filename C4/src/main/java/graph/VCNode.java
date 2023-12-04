@@ -24,7 +24,7 @@ public class VCNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public boolean canReachByVO(Node<VarType, ValType> other) {
+    public boolean canReachByAO(Node<VarType, ValType> other) {
         if (!(other instanceof VCNode)) {
             throw new RuntimeException("Type mismatch");
         }
@@ -39,7 +39,7 @@ public class VCNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public void updateVOReachability(Node<VarType, ValType> other) {
+    public void updateAOReachability(Node<VarType, ValType> other) {
         if (!(other instanceof VCNode)) {
             throw new RuntimeException("Type mismatch");
         }
@@ -47,7 +47,7 @@ public class VCNode<VarType, ValType> extends Node<VarType, ValType>{
     }
 
     @Override
-    public void syncCOVO() {
+    public void syncCOAO() {
         clockVO = new VectorClock(clock);
     }
 }

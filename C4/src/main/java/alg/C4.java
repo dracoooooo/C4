@@ -1,16 +1,13 @@
 package alg;
 
-import badPattern.BadPatternType;
+import taps.TAP;
 import graph.*;
-import guru.nidi.graphviz.engine.Format;
 import history.History;
 import history.Operation;
 import history.Transaction;
 import javafx.util.Pair;
 import lombok.Data;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,44 +18,72 @@ import static guru.nidi.graphviz.model.Factory.node;
 
 @Data
 public class C4<VarType, ValType> {
-    private final AlgType type;
+    protected final AlgType type;
+    protected final History<VarType, ValType> history;
+    protected final IsolationLevel isolationLevel;
 
-    private final History<VarType, ValType> history;
+    protected final Set<TAP> badPatterns = new HashSet<>();
+    protected final Map<String, Integer> badPatternCount = new HashMap<>();
+    protected final Graph<VarType, ValType> graph = new Graph<>();
 
-    private final IsolationLevel isolationLevel;
+    protected final Map<Pair<VarType, ValType>, Operation<VarType, ValType>> writes = new HashMap<>();
+    protected final Map<Pair<VarType, ValType>, List<Operation<VarType, ValType>>> reads = new HashMap<>();
+    protected final Map<Pair<VarType, ValType>, List<Operation<VarType, ValType>>> readsWithoutWrites = new HashMap<>();
+    protected final Map<VarType, Set<Node<VarType, ValType>>> writeNodes = new HashMap<>();
+    protected final Map<VarType, Set<Pair<Node<VarType, ValType>, Node<VarType, ValType>>>> WREdges = new HashMap<>();
+    protected final Map<Pair<Node<VarType, ValType>, Node<VarType, ValType>>, List<Pair<Operation<VarType, ValType>, Operation<VarType, ValType>>>> WRNodesToOp = new HashMap<>();
+    protected final Map<Operation<VarType, ValType>, Node<VarType, ValType>> op2node = new HashMap<>();
+    protected final Set<Operation<VarType, ValType>> internalWrites = new HashSet<>();
 
-    private final Set<BadPatternType> badPatterns = new HashSet<>();
-    private final Map<String, Integer> badPatternCount = new HashMap<>();
-    private final Graph<VarType, ValType> graph = new Graph<>();
+    protected Object ZERO = 0L;
+    protected static final Map<IsolationLevel, Set<TAP>> PROHIBITED_TAPS = new HashMap<>();
+    static {
+        Set<TAP> RCTAPs = new HashSet<>(List.of(new TAP[]{
+                TAP.ThinAirRead,
+                TAP.AbortedRead,
+                TAP.FutureRead,
+                TAP.NotMyOwnWrite,
+                TAP.NotMyLastWrite,
+                TAP.IntermediateRead,
+                TAP.CyclicCO,
+                TAP.NonMonoReadCO,
+                TAP.NonMonoReadAO,
+        }));
+        Set<TAP> RATAPs = new HashSet<>(RCTAPs);
+        RATAPs.addAll(List.of(new TAP[]{
+                TAP.NonRepeatableRead,
+                TAP.FracturedReadCO,
+                TAP.FracturedReadAO
+        }));
+        Set<TAP> TCCTAPs = new HashSet<>(RATAPs);
+        TCCTAPs.addAll(List.of(new TAP[]{
+                TAP.COConflictAO,
+                TAP.ConflictAO
+        }));
+        PROHIBITED_TAPS.put(IsolationLevel.RC, RCTAPs);
+        PROHIBITED_TAPS.put(IsolationLevel.RA, RATAPs);
+        PROHIBITED_TAPS.put(IsolationLevel.TCC, TCCTAPs);
+    }
 
-    private final Map<Pair<VarType, ValType>, Operation<VarType, ValType>> writes = new HashMap<>();
-    private final Map<Pair<VarType, ValType>, List<Operation<VarType, ValType>>> reads = new HashMap<>();
-    private final Map<Pair<VarType, ValType>, List<Operation<VarType, ValType>>> readsWithoutWrites = new HashMap<>();
-    private final Map<VarType, Set<Node<VarType, ValType>>> writeNodes = new HashMap<>();
-    private final Map<VarType, Set<Pair<Node<VarType, ValType>, Node<VarType, ValType>>>> WREdges = new HashMap<>();
-    private final Map<Operation<VarType, ValType>, Node<VarType, ValType>> op2node = new HashMap<>();
-    private final Set<Operation<VarType, ValType>> internalWrites = new HashSet<>();
-
-    private static final Long ZERO = 0L;
 
     public void validate() {
         buildCO();
-        checkCOBP();
+        checkCOTAP();
         if (isolationLevel == IsolationLevel.RC) {
             System.out.println(badPatternCount);
             return;
         }
         syncClock();
-        buildVO();
-        if (!hasCircle(Edge.Type.VO)) {
+        buildAO();
+        if (!hasCircle(Edge.Type.AO)) {
             System.out.println(badPatternCount);
             return;
         }
-        checkVOBP();
+        checkAOTAP();
         System.out.println(badPatternCount);
     }
 
-    private void buildCO() {
+    protected void buildCO() {
         var hist = history.getFlatTransactions();
         Map<Long, Node<VarType, ValType>> prevNodes = new HashMap<>();
 
@@ -87,9 +112,22 @@ public class C4<VarType, ValType> {
                     var prevRW = nearestRW.get(op.getVariable());
                     if (prevRW != null && !op.getValue().equals(prevRW.getValue())) {
                         if (prevRW.getType() == Operation.Type.READ) {
-                            findBadPattern(BadPatternType.NonRepeatableRead);
+                            findTAP(TAP.NonRepeatableRead);
                         } else {
-                            findBadPattern(BadPatternType.NotMyOwnWrite);
+                            boolean findNotMyLastWrite = false;
+                            for (var prevOp: txn.getOps()) {
+                                if (prevOp.getId() < prevRW.getId() &&
+                                prevOp.getType() == Operation.Type.WRITE &&
+                                prevOp.getVariable().equals(op.getVariable()) &&
+                                prevOp.getValue().equals(op.getValue())
+                                ) {
+                                    findNotMyLastWrite = true;
+                                    findTAP(TAP.NotMyLastWrite);
+                                }
+                            }
+                            if (!findNotMyLastWrite) {
+                                findTAP(TAP.NotMyOwnWrite);
+                            }
                         }
                     }
                     nearestRW.put(op.getVariable(), op);
@@ -107,6 +145,7 @@ public class C4<VarType, ValType> {
                                 graph.addEdge(writeNode, node, new Edge<>(Edge.Type.WR, op.getVariable()));
                             }
                             WREdges.computeIfAbsent(op.getVariable(), k -> new HashSet<>()).add(new Pair<>(writeNode, node));
+                            WRNodesToOp.computeIfAbsent(new Pair<>(writeNode, node), wr -> new ArrayList<>()).add(new Pair<>(write, op));
                         }
                     } else if (op.getValue().equals(ZERO)) {
                         // if no write -> op, but op reads zero
@@ -116,6 +155,10 @@ public class C4<VarType, ValType> {
                     }
                 } else {
                     // if op is a write
+                    if (op.getValue().equals(ZERO)) {
+                        // ignore write 0
+                        continue;
+                    }
                     writes.put(key, op);
                     writeNodes.computeIfAbsent(op.getVariable(), k -> new HashSet<>()).add(node);
 
@@ -136,6 +179,7 @@ public class C4<VarType, ValType> {
                             if (!node.equals(pendingReadNode)) {
                                 graph.addEdge(node, pendingReadNode, new Edge<>(Edge.Type.WR, op.getVariable()));
                                 WREdges.computeIfAbsent(op.getVariable(), k -> new HashSet<>()).add(new Pair<>(node, pendingReadNode));
+                                WRNodesToOp.computeIfAbsent(new Pair<>(node, pendingReadNode), wr -> new ArrayList<>()).add(new Pair<>(op, pendingRead));
                             }
                         }
                     }
@@ -146,20 +190,20 @@ public class C4<VarType, ValType> {
         }
     }
 
-    private void checkCOBP() {
+    protected void checkCOTAP() {
         // check aborted read and thin air
         if (readsWithoutWrites.size() > 0) {
             AtomicInteger count = new AtomicInteger();
             readsWithoutWrites.keySet().forEach((key) -> {
                 if (history.getAbortedWrites().contains(key)) {
                     // find aborted read
-                    findBadPattern(BadPatternType.AbortedRead);
+                    findTAP(TAP.AbortedRead);
                     count.addAndGet(1);
                 }
             });
             if (count.get() != readsWithoutWrites.size()) {
                 // find thin air read
-                findBadPattern(BadPatternType.ThinAirRead);
+                findTAP(TAP.ThinAirRead);
             }
         }
 
@@ -178,19 +222,42 @@ public class C4<VarType, ValType> {
                         return;
                     }
 
-                    // check InitialRead if check TCC
-                    if (isolationLevel == IsolationLevel.TCC) {
-                        // check if write(x, k) co-> read
-                        writeRelNodes.forEach((writeNode) -> {
-                            if (writeNode.equals(node)) {
-                                return;
+                    // check if write(x, k) co-> read
+                    writeRelNodes.forEach((writeNode) -> {
+                        if (writeNode.equals(node)) {
+                            return;
+                        }
+                        if (writeNode.canReachByCO(node)) {
+                            // there are 3 cases: initReadMono initReadWR or writeCOInitRead
+                            boolean findSubTap = false;
+                            for (var writeY : writeNode.getTransaction().getOps()) {
+                                for (var readY : node.getTransaction().getOps()) {
+                                    if (!writeY.getVariable().equals(read.getVariable()) &&
+                                            writeY.getType().equals(Operation.Type.WRITE) &&
+                                            readY.getType().equals(Operation.Type.READ) &&
+                                            writeY.getVariable().equals(readY.getVariable()) &&
+                                            writeY.getValue().equals(readY.getValue())) {
+                                        // find w(y, v_y) wr-> r(y, v_y)
+                                        findSubTap = true;
+                                        if (readY.getId() < read.getId()) {
+                                            // find nonMonoReadCO  if read y precedes read x
+//                                            findTAP(TAP.InitReadMono);
+                                            findTAP(TAP.NonMonoReadCO);
+                                        } else {
+                                            // find initReadWR
+//                                            findTAP(TAP.InitReadWR);
+                                            findTAP(TAP.FracturedReadCO);
+                                        }
+                                    }
+                                }
                             }
-                            if (writeNode.canReachByCO(node)) {
-                                // find writeCOInitRead
-                                findBadPattern(BadPatternType.WriteCOInitRead);
+                            if (!findSubTap) {
+                                // find initReadCO if not InitReadMono or InitReadWR
+//                                findTAP(TAP.InitReadCO);
+                                findTAP(TAP.COConflictAO);
                             }
-                        });
-                    }
+                        }
+                    });
                     return;
                 }
 
@@ -202,36 +269,34 @@ public class C4<VarType, ValType> {
                     // in different txn
                     if (internalWrites.contains(write)) {
                         // find intermediate write
-                        findBadPattern(BadPatternType.IntermediateRead);
+                        findTAP(TAP.IntermediateRead);
                     }
                 } else {
                     // in same txn
                     if (write.getId() > read.getId()) {
                         // find future read
-                        findBadPattern(BadPatternType.FutureRead);
+                        findTAP(TAP.FutureRead);
                     }
                 }
             });
         });
 
-        // check CyclicCO if check TCC
-        if (isolationLevel == IsolationLevel.TCC) {
-            // iter wr edge (t1 wr-> t2)
-            WREdges.forEach((varX, edgesX) -> {
-                edgesX.forEach((edge) -> {
-                    var t1 = edge.getKey();
-                    var t2 = edge.getValue();
-                    if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
-                        // find cyclicCO
-                        findBadPattern(BadPatternType.CyclicCO);
-                        print2TxnBp(t1.getTransaction(), t2.getTransaction());
-                    }
-                });
+        // check CyclicCO
+        // iter wr edge (t1 wr-> t2)
+        WREdges.forEach((varX, edgesX) -> {
+            edgesX.forEach((edge) -> {
+                var t1 = edge.getKey();
+                var t2 = edge.getValue();
+                if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
+                    // find cyclicCO
+                    findTAP(TAP.CyclicCO);
+                    print2TxnBp(t1.getTransaction(), t2.getTransaction());
+                }
             });
-        }
+        });
     }
 
-    private void buildVO() {
+    protected void buildAO() {
         var pendingNodes = new HashSet<Node<VarType, ValType>>();
 
         WREdges.forEach((variable, edges) -> {
@@ -240,11 +305,11 @@ public class C4<VarType, ValType> {
                 var t2 = edge.getValue();
                 writeNodes.get(variable).forEach((t) -> {
                     if (!t.equals(t1) && !(t.equals(t2)) && t.canReachByCO(t2)) {
-                        // build vo edge
+                        // build ao edge
                         if (t.canReachByCO(t1)) {
                             return;
                         }
-                        graph.addEdge(t, t1, new Edge<>(Edge.Type.VO, null));
+                        graph.addEdge(t, t1, new Edge<>(Edge.Type.AO, null));
                         pendingNodes.add(t);
                     }
                 });
@@ -253,71 +318,64 @@ public class C4<VarType, ValType> {
 
         // update downstream nodes
         pendingNodes.forEach((node) -> {
-            updateVec(new HashSet<>(), node, node, Edge.Type.VO);
+            updateVec(new HashSet<>(), node, node, Edge.Type.AO);
         });
     }
 
-    private void checkVOBP() {
-        // iter wr edge (t2 wr-> t3)
-        WREdges.forEach((varX, edgesX) -> {
-            edgesX.forEach((edge) -> {
-                var t2 = edge.getKey();
-                var t3 = edge.getValue();
-
-                writeNodes.get(varX).forEach((t1) -> {
-                    if (!t1.equals(t2) && !t1.equals(t3) && t1.canReachByCO(t3) && t2.canReachByCO(t1)) {
-                        // find bp triangle
-                        AtomicBoolean isRA = new AtomicBoolean(false);
-                        WREdges.forEach((varY, edgesY) -> {
-                            if (!varX.equals(varY) && edgesY.contains(new Pair<>(t1, t3))) {
-                                isRA.set(true);
-                                // find fractured read co
-                                findBadPattern(BadPatternType.FracturedReadCO);
-                                print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+    protected void checkAOTAP() {
+        // iter wr edge (t1 wr-> t3)
+        WRNodesToOp.forEach((WRNodePair, WROpPairList) -> {
+            var t1 = WRNodePair.getKey();
+            var t3 = WRNodePair.getValue();
+            WROpPairList.forEach((WROpPair) -> {
+                var varX = WROpPair.getKey().getVariable();
+                writeNodes.get(varX).forEach((t2) -> {
+                    if (!t2.equals(t1) && !t2.equals(t3) && t2.canReachByCO(t3) && t1.canReachByCO(t2)) {
+                        // find tap triangle
+                        boolean findSubTAP = false;
+                        if (WRNodesToOp.containsKey(new Pair<>(t2, t3))) {
+                            findSubTAP = true;
+                            var WRYOpPairList = WRNodesToOp.get(new Pair<>(t2, t3));
+                            for (var WRYOpPair : WRYOpPairList) {
+                                var readY = WRYOpPair.getValue();
+                                var varY = readY.getVariable();
+                                if (varY == varX) {
+                                    continue;
+                                }
+                                if (readY.getId() < WROpPair.getValue().getId()) {
+                                    // find NonMonoReadCO
+                                    findTAP(TAP.NonMonoReadCO);
+                                } else {
+                                    // find FracturedReadCO
+                                    findTAP(TAP.FracturedReadCO);
+                                }
                             }
-                        });
-                        // continue if is RA bp
-                        if (isRA.get()) {
-                            return;
                         }
-                        // check COConflictVO if check TCC, continue if check RA
-                        if (isolationLevel == IsolationLevel.TCC) {
-                            // find co conflict vo
-                            findBadPattern(BadPatternType.COConflictVO);
-                            print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+                        if (!findSubTAP) {
+                            // find COConflictAO
+                            findTAP(TAP.COConflictAO);
                         }
                     }
-                });
-            });
-        });
-
-        // iter wr edge (t2 wr-> t3)
-        WREdges.forEach((varX, edgesX) -> {
-            edgesX.forEach((edge) -> {
-                var t2 = edge.getKey();
-                var t3 = edge.getValue();
-
-                writeNodes.get(varX).forEach((t1) -> {
-                    if (!t1.equals(t2) && !t1.equals(t3) && t1.canReachByCO(t3) && !t2.canReachByCO(t1) && t2.canReachByVO(t1)) {
-                        // find bp triangle
-                        AtomicBoolean isRA = new AtomicBoolean(false);
-                        WREdges.forEach((varY, edgesY) -> {
-                            if (!varX.equals(varY) && edgesY.contains(new Pair<>(t1, t3))) {
-                                isRA.set(true);
-                                // find fractured read vo
-                                findBadPattern(BadPatternType.FracturedReadVO);
-                                print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+                    if (!t2.equals(t1) && !t2.equals(t3) && t2.canReachByCO(t3) && !t1.canReachByCO(t2) && t1.canReachByAO(t2)) {
+                        // find tap triangle
+                        boolean findSubTAP = false;
+                        if (WRNodesToOp.containsKey(new Pair<>(t2, t3))) {
+                            findSubTAP = true;
+                            var WRYOpPairList = WRNodesToOp.get(new Pair<>(t2, t3));
+                            for (var WRYOpPair : WRYOpPairList) {
+                                var readY = WRYOpPair.getValue();
+                                if (readY.getId() < WROpPair.getValue().getId()) {
+                                    // find NonMonoReadAO
+                                    findTAP(TAP.NonMonoReadAO);
+                                } else {
+                                    // find FracturedReadAO
+                                    findTAP(TAP.FracturedReadAO);
+                                }
                             }
-                        });
-                        // continue if is RA bp
-                        if (isRA.get()) {
-                            return;
                         }
-                        // check ConflictVO if check TCC, continue if check RA
-                        if (isolationLevel == IsolationLevel.TCC) {
-                            // find conflict vo
-                            findBadPattern(BadPatternType.ConflictVO);
-                            print3TxnBp(t2.getTransaction(), t1.getTransaction(), t3.getTransaction());
+                        if (!findSubTAP) {
+                            // find ConflictAO
+                            findTAP(TAP.ConflictAO);
                         }
                     }
                 });
@@ -325,7 +383,7 @@ public class C4<VarType, ValType> {
         });
     }
 
-    private void updateVec(Set<Node<VarType, ValType>> visited, Node<VarType, ValType> cur, Node<VarType, ValType> upNode, Edge.Type edgeType) {
+    protected void updateVec(Set<Node<VarType, ValType>> visited, Node<VarType, ValType> cur, Node<VarType, ValType> upNode, Edge.Type edgeType) {
         visited.add(cur);
 
         var nextNodes = graph.get(cur);
@@ -336,30 +394,29 @@ public class C4<VarType, ValType> {
                 }
                 next.updateCOReachability(upNode);
                 updateVec(visited, next, upNode, edgeType);
-            } else if (edgeType == Edge.Type.VO) {
-                if (visited.contains(next) || upNode.canReachByVO(next)) {
+            } else if (edgeType == Edge.Type.AO) {
+                if (visited.contains(next) || upNode.canReachByAO(next)) {
                     continue;
                 }
-                next.updateVOReachability(upNode);
+                next.updateAOReachability(upNode);
                 updateVec(visited, next, upNode, edgeType);
             }
         }
     }
 
-    private void findBadPattern(BadPatternType badPattern) {
-//        if (badPatterns.contains(badPattern)) {
-//            return;
-//        }
-//        System.err.printf("Find Bad Pattern: %s %s\n", badPattern.getCode(), badPattern.name());
-        badPatterns.add(badPattern);
-        badPatternCount.merge(badPattern.getCode(), 1, Integer::sum);
+    protected void findTAP(TAP tap) {
+        if (PROHIBITED_TAPS.get(isolationLevel).contains(tap)) {
+            badPatterns.add(tap);
+            badPatternCount.merge(tap.getCode(), 1, Integer::sum);
+        }
     }
 
-    private Node<VarType, ValType> constructNode(Transaction<VarType, ValType> transaction, Node<VarType, ValType> prev) {
+    protected Node<VarType, ValType> constructNode(Transaction<VarType, ValType> transaction, Node<VarType, ValType> prev) {
         short tid = (short) transaction.getSession().getId();
         int dim = history.getSessionSize();
         switch (type) {
             case C4:
+            case C4_LIST:
                 return new TCNode<>(graph, transaction, tid, dim, prev);
             case C4_WITHOUT_TC:
                 return new VCNode<>(graph, transaction, tid, dim, prev);
@@ -370,59 +427,53 @@ public class C4<VarType, ValType> {
         }
     }
 
-    private void syncClock() {
-        graph.getAdjMap().keySet().forEach(Node::syncCOVO);
+    protected void syncClock() {
+        graph.getAdjMap().keySet().forEach(Node::syncCOAO);
     }
 
-//    private boolean hasCircle(Edge.Type edgeType) {
-//        return WREdges.values().stream().anyMatch((pairs) -> pairs.stream().anyMatch((pair) -> {
-//            var from = pair.getKey();
-//            var to = pair.getValue();
-//            return (edgeType == Edge.Type.CO && to.canReachByCO(from)) ||
-//                    (edgeType == Edge.Type.VO && to.canReachByVO(from));
-//        }));
-//    }
-    private boolean hasCircle(Edge.Type edgeType) {
+    protected boolean hasCircle(Edge.Type edgeType) {
         return graph.getAdjMap().entrySet().stream().anyMatch((entry) -> {
             var from = entry.getKey();
             var toNodes = entry.getValue();
             return toNodes.stream().anyMatch((node) -> (edgeType == Edge.Type.CO && node.canReachByCO(from)) ||
-                    (edgeType == Edge.Type.VO && node.canReachByVO(from)));
+                    (edgeType == Edge.Type.AO && node.canReachByAO(from)));
         });
     }
 
-    private void print3TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2, Transaction<VarType, ValType> t3) {
-        var node1 = node("t" + t1.getId());
-        var node2 = node("t" + t2.getId());
-        var node3 = node("t" + t3.getId());
-        var g = graph().directed()
-                .linkAttr().with("class", "link-class")
-                .with(
-                        node1.link(node2),
-                        node2.link(node3),
-                        node2.link(node1),
-                        node1.link(node3)
-                );
-        try {
-            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s-%s.png", t1.getId(), t2.getId(), t3.getId())));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    protected void print3TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2, Transaction<VarType, ValType> t3) {
+        return;
+//        var node1 = node("t" + t1.getId());
+//        var node2 = node("t" + t2.getId());
+//        var node3 = node("t" + t3.getId());
+//        var g = graph().directed()
+//                .linkAttr().with("class", "link-class")
+//                .with(
+//                        node1.link(node2),
+//                        node2.link(node3),
+//                        node2.link(node1),
+//                        node1.link(node3)
+//                );
+//        try {
+//            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s-%s.png", t1.getId(), t2.getId(), t3.getId())));
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
-    private void print2TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2) {
-        var node1 = node("t" + t1.getId());
-        var node2 = node("t" + t2.getId());
-        var g = graph().directed()
-                .linkAttr().with("class", "link-class")
-                .with(
-                        node1.link(node2),
-                        node2.link(node1)
-                );
-        try {
-            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s.png", t1.getId(), t2.getId())));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    protected void print2TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2) {
+        return;
+//        var node1 = node("t" + t1.getId());
+//        var node2 = node("t" + t2.getId());
+//        var g = graph().directed()
+//                .linkAttr().with("class", "link-class")
+//                .with(
+//                        node1.link(node2),
+//                        node2.link(node1)
+//                );
+//        try {
+//            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s.png", t1.getId(), t2.getId())));
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 }
