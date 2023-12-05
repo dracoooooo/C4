@@ -1,19 +1,14 @@
 package alg;
 
-import taps.TAP;
 import graph.Edge;
-import graph.Graph;
 import graph.Node;
-import graph.TCNode;
 import history.History;
 import history.Operation;
-import history.Transaction;
 import javafx.util.Pair;
 import loader.ElleHistoryLoader;
-import lombok.Data;
+import taps.TAP;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class C4List<VarType> extends C4<VarType, ElleHistoryLoader.ElleValue> {
@@ -234,11 +229,9 @@ public class C4List<VarType> extends C4<VarType, ElleHistoryLoader.ElleValue> {
                                             findSubTap = true;
                                             if (readY.getId() < read.getId()) {
                                                 // find initReadMono if read y precedes read x
-//                                                findTAP(TAP.InitReadMono);
                                                 findTAP(TAP.NonMonoReadCO);
                                             } else {
                                                 // find initReadWR
-//                                                findTAP(TAP.InitReadWR);
                                                 findTAP(TAP.FracturedReadCO);
                                             }
                                         }
@@ -246,7 +239,6 @@ public class C4List<VarType> extends C4<VarType, ElleHistoryLoader.ElleValue> {
                                 }
                                 if (!findSubTap) {
                                     // find initReadCO if not InitReadMono or InitReadWR
-//                                    findTAP(TAP.InitReadCO);
                                     findTAP(TAP.COConflictAO);
                                 }
                             }
@@ -288,7 +280,7 @@ public class C4List<VarType> extends C4<VarType, ElleHistoryLoader.ElleValue> {
                 if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
                     // find cyclicCO
                     findTAP(TAP.CyclicCO);
-                    print2TxnBp(t1.getTransaction(), t2.getTransaction());
+                    print2TxnBp(t1, t2);
                 }
             });
         });

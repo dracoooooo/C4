@@ -1,15 +1,17 @@
 package alg;
 
-import taps.TAP;
 import graph.*;
+import guru.nidi.graphviz.engine.Format;
 import history.History;
 import history.Operation;
 import history.Transaction;
 import javafx.util.Pair;
 import lombok.Data;
+import taps.TAP;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static guru.nidi.graphviz.engine.Graphviz.fromGraph;
@@ -241,11 +243,9 @@ public class C4<VarType, ValType> {
                                         findSubTap = true;
                                         if (readY.getId() < read.getId()) {
                                             // find nonMonoReadCO  if read y precedes read x
-//                                            findTAP(TAP.InitReadMono);
                                             findTAP(TAP.NonMonoReadCO);
                                         } else {
                                             // find initReadWR
-//                                            findTAP(TAP.InitReadWR);
                                             findTAP(TAP.FracturedReadCO);
                                         }
                                     }
@@ -253,7 +253,6 @@ public class C4<VarType, ValType> {
                             }
                             if (!findSubTap) {
                                 // find initReadCO if not InitReadMono or InitReadWR
-//                                findTAP(TAP.InitReadCO);
                                 findTAP(TAP.COConflictAO);
                             }
                         }
@@ -290,7 +289,7 @@ public class C4<VarType, ValType> {
                 if (t1.canReachByCO(t2) && t2.canReachByCO(t1)) {
                     // find cyclicCO
                     findTAP(TAP.CyclicCO);
-                    print2TxnBp(t1.getTransaction(), t2.getTransaction());
+                    print2TxnBp(t1, t2);
                 }
             });
         });
@@ -332,7 +331,17 @@ public class C4<VarType, ValType> {
                 writeNodes.get(varX).forEach((t2) -> {
                     if (!t2.equals(t1) && !t2.equals(t3) && t2.canReachByCO(t3) && t1.canReachByCO(t2)) {
                         // find tap triangle
+                        print3TxnBp(t1, t2, t3);
                         boolean findSubTAP = false;
+                        var edges = graph.getEdge(t2, t3);
+                        if (edges != null) {
+                            for (var edge: edges) {
+                                if (edge.getType() == Edge.Type.SO) {
+                                    findTAP(TAP.FracturedReadCO);
+                                    findSubTAP = true;
+                                }
+                            }
+                        }
                         if (WRNodesToOp.containsKey(new Pair<>(t2, t3))) {
                             findSubTAP = true;
                             var WRYOpPairList = WRNodesToOp.get(new Pair<>(t2, t3));
@@ -358,7 +367,17 @@ public class C4<VarType, ValType> {
                     }
                     if (!t2.equals(t1) && !t2.equals(t3) && t2.canReachByCO(t3) && !t1.canReachByCO(t2) && t1.canReachByAO(t2)) {
                         // find tap triangle
+                        print3TxnBp(t1, t2, t3);
                         boolean findSubTAP = false;
+                        var edges = graph.getEdge(t2, t3);
+                        if (edges != null) {
+                            for (var edge: edges) {
+                                if (edge.getType() == Edge.Type.SO) {
+                                    findTAP(TAP.FracturedReadAO);
+                                    findSubTAP = true;
+                                }
+                            }
+                        }
                         if (WRNodesToOp.containsKey(new Pair<>(t2, t3))) {
                             findSubTAP = true;
                             var WRYOpPairList = WRNodesToOp.get(new Pair<>(t2, t3));
@@ -440,40 +459,39 @@ public class C4<VarType, ValType> {
         });
     }
 
-    protected void print3TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2, Transaction<VarType, ValType> t3) {
-        return;
-//        var node1 = node("t" + t1.getId());
-//        var node2 = node("t" + t2.getId());
-//        var node3 = node("t" + t3.getId());
-//        var g = graph().directed()
-//                .linkAttr().with("class", "link-class")
-//                .with(
-//                        node1.link(node2),
-//                        node2.link(node3),
-//                        node2.link(node1),
-//                        node1.link(node3)
-//                );
-//        try {
-//            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s-%s.png", t1.getId(), t2.getId(), t3.getId())));
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
+    protected void print3TxnBp(Node<VarType, ValType> t1, Node<VarType, ValType> t2, Node<VarType, ValType> t3) {
+        var node1 = node("t" + t1.getTransaction().getId());
+        var node2 = node("t" + t2.getTransaction().getId());
+        var node3 = node("t" + t3.getTransaction().getId());
+        var g = graph().directed()
+                .linkAttr().with("class", "link-class")
+                .with(
+                        node1.link(node2),
+                        node2.link(node3),
+                        node2.link(node1),
+                        node1.link(node3)
+                );
+        try {
+            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s-%s.png",
+                    t1.getTransaction().getOps(), t2.getTransaction().getId(), t3.getTransaction().getId())));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    protected void print2TxnBp(Transaction<VarType, ValType> t1, Transaction<VarType, ValType> t2) {
-        return;
-//        var node1 = node("t" + t1.getId());
-//        var node2 = node("t" + t2.getId());
-//        var g = graph().directed()
-//                .linkAttr().with("class", "link-class")
-//                .with(
-//                        node1.link(node2),
-//                        node2.link(node1)
-//                );
-//        try {
-//            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s.png", t1.getId(), t2.getId())));
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
+    protected void print2TxnBp(Node<VarType, ValType> t1, Node<VarType, ValType> t2) {
+        var node1 = node("t" + t1.getTransaction());
+        var node2 = node("t" + t2.getTransaction());
+        var g = graph().directed()
+                .linkAttr().with("class", "link-class")
+                .with(
+                        node1.link(node2),
+                        node2.link(node1)
+                );
+        try {
+            fromGraph(g).height(500).render(Format.PNG).toFile(new File(String.format("graphviz/%s-%s.png", t1.getTransaction().getId(), t2.getTransaction().getId())));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
